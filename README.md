@@ -12,4 +12,4 @@ It's supposed to work like this:
   - Press enter and let it run.
   - There will be a `.txt` file with the results.
 
-I hope someone finds this useful enough to keep updating it. It maybe later include some other useful stuff to solve high school boring homeworks like equation systems and such. You know what? That sounds pretty good, let future me decide.
+I hope someone finds this useful enough to keep updating it. It'll maybe later include some other useful stuff to solve high school boring homeworks like equation systems and such. You know what? That sounds pretty good, let future me decide.

@@ -7,9 +7,8 @@
 int main(int argc, char *argv[]) {	
 	setlocale(LC_ALL,"");
 	
-	FILE* aux = fopen("test.txt", "r");
-	printf("\n%lf", pemdasSolve(aux));
-
+	solveLineByLine("test.txt");
+	
 	getchar();
 	return 0;
 }

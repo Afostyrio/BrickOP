@@ -7,5 +7,6 @@
 
 void printVector(double* vec, int size);
 void printCharVector(char* vec, int size);
+void printString(char* vec);
 
 #endif

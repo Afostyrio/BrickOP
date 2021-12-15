@@ -2,7 +2,6 @@
 
 void printVector(double* vec, int size){
 	int i;
-	printf("\n");
 	for(i=0; i<size; i++){
 		printf("%lf ", vec[i]);
 	}
@@ -12,10 +11,17 @@ void printVector(double* vec, int size){
 
 void printCharVector(char* vec, int size){
 	int i;
-	printf("\n");
 	for(i=0; i<size; i++){
 		printf("%c ", vec[i]);
 	}
 	printf("\n");
 	return;
+}
+
+void printString(char* vec){
+	int i = 0;
+	while(vec[i]){
+		printf("%c", vec[i]);
+		i++;
+	}
 }

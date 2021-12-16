@@ -1,10 +1,9 @@
 #include "pemdas.h"
 
-void clearParen(char filename[MAX_FILENAME_SIZE]){
-	FILE* stream = fopen(filename, "rb");
+void clearParen(char filename[MAX_FILENAME_SIZE], FILE* destination){
+	FILE* stream = fopen(filename, "rb+");
 	char* str = malloc(MAX_OPERATION_SIZE * sizeof(char));
 	fgets(str, MAX_OPERATION_SIZE, stream);
-	fclose(stream);
 	int i = 0, parenFirstPos = -1;
 	while(str[i]){	
 		if(str[i] == '('){
@@ -24,43 +23,60 @@ void clearParen(char filename[MAX_FILENAME_SIZE]){
 	}
 	parenLastPos = i;
 	
-	char* substr = malloc((parenLastPos-parenFirstPos)*sizeof(char));
+	char* substr = malloc((parenLastPos-parenFirstPos+1)*sizeof(char));
 	for(i=0; i<parenLastPos-parenFirstPos-1; i++){
 		substr[i] = str[i+parenFirstPos+1];
 	}
-	substr[parenLastPos-parenFirstPos-1] = 0;
-	FILE* subOperation = fopen("subOp.bin", "wb");
+	substr[parenLastPos-parenFirstPos-1] = '\n';
+	substr[parenLastPos-parenFirstPos] = 0;
+	FILE* subOperation = fopen("subOp.txt", "w+");
 	fputs(substr, subOperation);
-	fclose(subOperation);
-	double result = pemdasSolve("subOp.bin");
-	remove("subOp.bin");
 	free(substr);
+	fclose(subOperation);
+	subOperation = fopen("subOp.txt", "r+");
+	double result = pemdasSolve(subOperation, subOperation);
+	fclose(stream);
+	rewind(subOperation);
+	remove("subOp.txt");
 	
-	stream = fopen(filename, "wb");
-	if(!stream){
-		printf("Error");
-	}
-	
-	substr = malloc(MAX_OPERATION_SIZE * sizeof(char));
+	char* head = malloc(MAX_OPERATION_SIZE * sizeof(char));
+	char* subStep = malloc(MAX_OPERATION_SIZE * sizeof(char));
+	char* tail = malloc(MAX_OPERATION_SIZE * sizeof(char));
+
 	for(i=0; i<parenFirstPos; i++){
-		substr[i] = str[i];
+		head[i] = str[i];
 	}
-	substr[i] = 0;
-	fputs(substr, stream);
-	fprintf(stream, "%lf", result);
+	head[i] = 0;
+	
 	i = 0;
 	while(1){
-		substr[i] = str[i+parenLastPos+1];
-		if(substr[i] == 0){
+		tail[i] = str[i+parenLastPos+1];
+		if(tail[i] == 0){
 			break;
 		}
-		fputc(substr[i], stream);
 		i++;
 	}
+	fgets(subStep, MAX_OPERATION_SIZE, subOperation);
+	while(fgets(subStep, MAX_OPERATION_SIZE, subOperation) != NULL){
+		fputs(head, destination);
+		fprintf(destination, "(");
+		fputs(subStep, destination);
+		fseek(destination, -2, SEEK_END);
+		fprintf(destination, ")");
+		
+		fputs(tail, destination);
+		fseek(destination, -2, SEEK_END);
+	}
+
+	stream = fopen(filename, "wb");
+	fputs(head, stream);
+	fprintf(stream, "%lf", result);
+	fputs(tail, stream);
 	fclose(stream);
-	free(str); free(substr);
+	free(str);
+	free(head); free(tail);
 	
-	clearParen(filename);
+	clearParen(filename, destination);
 }
 
 void solveLineByLine(char filename[MAX_FILENAME_SIZE]){
@@ -76,86 +92,79 @@ void solveLineByLine(char filename[MAX_FILENAME_SIZE]){
 	while(!feof(whole)){
 		char* str = malloc(MAX_OPERATION_SIZE * sizeof(char));
 		fgets(str, MAX_OPERATION_SIZE, whole);
-		FILE* oneLine = fopen("auxfile.bin", "wb");
+		FILE* oneLine = fopen("auxfile.txt", "w");
 		fputs(str, oneLine);
 		fclose(oneLine);
 		fputs(str, results);
 		free(str);
-		clearParen("auxfile.bin");
-		double ans = pemdasSolve("auxfile.bin");
-		printf("%lf\n", ans);
-		fseek(results, -2, SEEK_END);
-		fprintf(results, " = %lf\n", ans);
-		remove("auxfile.bin");
+		clearParen("auxfile.txt", results);
+		oneLine = fopen("auxfile.txt", "r+");
+		pemdasSolve(oneLine, results);
+		fclose(oneLine);
+		fprintf(results, "\n");
+		remove("auxfile.txt");
 	}
 	fclose(results);
 	fclose(whole);
 }
 
-/*
-FILE* getLineFromFile(char filename[MAX_FILENAME_SIZE]){
-	FILE* ptr = fopen(filename, "r");
-	if(!ptr){
-		printf("Error de archivo.");
-		return NULL;
-	}
-	char* str = malloc(MAX_OPERATION_SIZE * sizeof(char));
-	fgets(str, MAX_OPERATION_SIZE, ptr);
-	fclose(ptr);
-	ptr = fopen("lineFile.txt", "w");
-	fputs(str, ptr);
-	free(str);
-	fclose(ptr);
-	ptr = fopen("lineFile.txt", "r");
-	return ptr;
-}
-*/
-
-double pemdasSolve(char filename[MAX_FILENAME_SIZE]){
-	FILE* stream = fopen(filename, "rb");
+double pemdasSolve(FILE* stream, FILE* destination){
 	int numNumbers = countNumbers(stream);
 	double* numbers = malloc(numNumbers * sizeof(double)), final;
-	char* operators = malloc(numNumbers * sizeof(char));
+	char* operators = malloc(numNumbers * sizeof(char)), done = 0;
 	int i;
 	for(i=0; i<numNumbers; i++){
 		fscanf(stream, "%lf %c", &numbers[i], &operators[i]);
 	}
-	fclose(stream);
-//	printVector(numbers, numNumbers);
-//	printCharVector(operators, numNumbers);
 
 	for(i=0; i<numNumbers; i++){
 		if(operators[i] == '-'){
 			numbers[i+1] *= -1;
 			operators[i] = '+';
+			done = 1;
 		}
 		if(operators[i] == '/'){
 			numbers[i+1] = 1/numbers[i+1];
 			operators[i] = '*';
-		}		
+			done = 1;
+		}
+	}
+	if(done){
+		printCompleteLineToFile(numbers, operators, numNumbers, destination);
+	}
+	done = 0;
+
+	for(i=0; i<numNumbers; i++){
 		if(operators[i] == '^'){
 			numbers[i+1] = pow(numbers[i], numbers[i+1]);
 			operators[i] = '*';
 			numbers[i] = 1;
+			done = 1;
 		}
 	}
-//	printVector(numbers, numNumbers);
-//	printCharVector(operators, numNumbers);
-	
+	if(done){
+		printStepToFile(numbers, operators, numNumbers, destination);	
+	}
+	done = 0;
+
 	for(i=0; i<numNumbers; i++){
 		if(operators[i] == '*'){
 			numbers[i+1] *= numbers[i];
 			operators[i] = '+';
 			numbers[i] = 0;
+			done = 1;
 		}
 	}
-
-//	printVector(numbers, numNumbers);
-//	printCharVector(operators, numNumbers);
-
-	free(operators);
+	if(done){
+		printStepToFile(numbers, operators, numNumbers, destination);	
+	}
+		
 	final = sumaVector(numbers, numNumbers);
+	if(final != numbers[numNumbers - 1]){
+		fprintf(destination, "%lf\n", final);
+	}
 	free(numbers);
+	free(operators);
 
 	return final;
 }
@@ -171,34 +180,9 @@ int countNumbers(FILE* stream){
 	return counter;
 }
 
-/*
-int countOperators(FILE* stream){
-	int counter = 0;
-	double aux;
-	char auxChar;
-		while(!feof(stream)){
-		counter++;
-		fscanf(stream, "%lf %c ", &aux, &auxChar);
-		printf("%c ", auxChar);
-	}
-	rewind(stream);	
-	return counter;
-}
-*/
-
 double sumaVector(double* vec, int size){
 	if(!size){
 		return 0;
 	}
 	return *vec + sumaVector(vec+1, size-1);
 }
-
-//void removeNewline(char* str){
-//	int i = 0;
-//	while(str[i] != '\n'){
-//		i++;
-//	}
-//	str[i] = '\0';
-//}
-
- 
